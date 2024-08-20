@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: laravel-app
+    container_name: app
+    restart: unless-stopped
+    tty: true
+    environment:
+      DB_HOST: db
+      DB_DATABASE: photoapp
+      DB_USERNAME: root
+      DB_PASSWORD: 'root'
+    working_dir: /var/www
+    volumes:
+      - ./app:/var/www
+      - ./app/docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+    ports:
+      - "9000:9000"
+    depends_on:
+      - db
+    command: >
+      bash -c "composer install
+      && php artisan migrate
+      && php-fpm"
+
+  webserver:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8000:80"
+    volumes:
+      - ./app:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    networks:
+      - app-network
+
+  db:
+    image: mysql:5.7
+    container_name: mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: photoapp
+      MYSQL_ROOT_PASSWORD: root
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    networks:
+      - app-network
+    volumes:
+      - dbdata:/var/lib/mysql
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - app-network
+    depends_on:
+      - app
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local
